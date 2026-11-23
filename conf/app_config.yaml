@@ -25,17 +25,17 @@ db_dw:
 
 qdrant:
   host: localhost
-  port: 6333
+  port: 6343
   embedding_size: 1024
 
 embedding:
   host: localhost
-  port: 8081
+  port: 8082
   model: BAAI/bge-large-zh-v1.5
 
 es:
   host: localhost
-  port: 9200
+  port: 9201
   index_name: data_agent
 
 llm:
