@@ -33,6 +33,18 @@ async def recall_column(state: DataAgentState, runtime: Runtime[DataAgentContext
         column_qdrant_repository = runtime.context["column_qdrant_repository"]
         embedding_client = runtime.context["embedding_client"]
 
+        """
+        注意：用户问：“帮我查下广东上个月的销售额”
+        jieba 的输出：["广东", "上个月", "销售", "额"]
+        大模型的输出：["省份", "时间", "销售金额"]。
+        他们的区别一个是提取“字面词汇（Keywords），一个是提取“业务概念（Schema/Column）
+
+        下面PromptTemplate 默认是HumanMessage，合理的写法应该是SystemMessage
+        prompt = ChatPromptTemplate.from_messages([
+            ("system", load_prompt("extend_keywords_for_column_recall")),
+            ("human", "用户问题：\n{query}\n\n输出："),
+        ])
+        """
         # 用 LLM 把用户问法扩展成“字段语义”列表，例如“销售总额”可扩展出“销售金额”
         prompt = PromptTemplate(
             template=load_prompt("extend_keywords_for_column_recall"),

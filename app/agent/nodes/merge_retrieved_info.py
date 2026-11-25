@@ -66,6 +66,7 @@ async def merge_retrieved_info(
         # 3. 把字段取值合并回字段 examples
         # 字段取值召回命中的是 column_id + value，例如 dim_region.region_name.华北。
         # 把真实 value 放进字段 examples，可以帮助模型写出更接近真实数据的 where 条件。
+        # 为什么要塞进 examples：ES 召回证明了“华东”是 region_name 的真实取值，把证据交给模型，它才敢写 WHERE region_name = '华东'；否则它可能写成 '华东地区'、'East China' 或者干脆用 LIKE。
         for retrieved_value_info in retrieved_value_infos:
             value = retrieved_value_info.value
             column_id = retrieved_value_info.column_id
@@ -90,6 +91,7 @@ async def merge_retrieved_info(
         # 5. 补齐主外键字段
         # 主外键通常不会出现在用户问题里，单靠向量召回容易漏掉；
         # 但多表查询的 Join 路径必须依赖它们，所以每张候选表都要兜底补齐。
+        # 这里 meta_mysql_repository.get_key_columns_by_table_id(table_id) 会把表对应的所有主外键都召回，后面由筛选节点过滤掉无用主外键，秉持宁可多召回，也不要少的思路
         for table_id in table_to_columns_map.keys():
             key_columns: list[
                 ColumnInfo

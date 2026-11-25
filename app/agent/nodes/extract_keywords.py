@@ -39,6 +39,31 @@ async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentCont
             "l",  # 常用固定短语，例如“销售总额”
         )
 
+        """
+        好处：
+        1.给ES喂数据:Elasticsearch底层(倒排索引)在处
+        理中文时，必须要有一个分词器，把一句话切成
+        词，才能建索引。虽然ES有自带的IK分词器，但有
+        时候为了保持Python端和ES端的逻辑一致，或
+        者为了降低复杂度，开发者会直接使用Python,
+
+        2.降低Token成本与延迟:在调用最贵的大模型之前，
+        jieba来做轻量级的分词和关键词召回。
+        用jieba这种纯CPU计算的本地工具，迅速把一
+        些毫无意义的语气词(比如"帮我”、"那个")过滤掉，
+        能节省一点点成本。
+
+        现主流做法：
+        1.直接让 LLM 抽（最主流）：
+        用 with_structured_output()（就是我们之前聊过的 Pydantic），强制大模型吐出格式化的 JSON。准确率最高，什么多义词、同义词全都不在话下。
+
+        2.Function Calling（工具调用）：
+        把“提取信息”做成一个工具，让大模型自己去决定什么时候调用、填什么参数。
+
+        3.本地小型模型（成本敏感）：
+        如果觉得调用 GPT-4 太贵，可以在本地跑一个很小的模型（比如 Qwen-1.5B 或 Llama-3-8B），专门用它来干“实体抽取”这种脏活累活。速度快，还不花钱。
+        """
+
         # extract_tags 会基于 TF-IDF 抽取关键词，并按 allowPOS 做词性过滤
         keywords = jieba.analyse.extract_tags(query, allowPOS=allow_pos)
 

@@ -1,3 +1,16 @@
+
+/**
+  meta 库的定位是“描述层”，不是“建模层”。它要能把四件事说清楚就行：
+
+    1.这张表是事实表还是维度表（table_info.role）
+    2.这个字段是度量、维度还是主外键（column_info.role）
+    3.指标依赖哪些字段（column_metric）
+    4.字段怎么描述、有哪些别名、有什么示例值
+
+    这四件事有地方放，表设计就“够用”了。项目这四张表也确实很朴素——alias 直接存 JSON 数组，没做严格范式化。
+    对 RAG 场景这样反而更好：一次查询就能拿到完整对象，不用 join 一堆表。
+
+ */
 SET NAMES utf8mb4;
 CREATE DATABASE meta DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_general_ci;
 GRANT ALL PRIVILEGES ON meta.* TO 'didilili'@'%';
@@ -15,6 +28,12 @@ CREATE TABLE table_info
 
 
 
+/**
+  primary_key - 主键
+  foreign_key - 外键
+  measure - 度量 （例如-amount,quantity等）
+  dimension - 维度 （普通信息字段-如 product_name,year,brand等）
+ */
 DROP TABLE IF EXISTS column_info;
 CREATE TABLE column_info
 (
