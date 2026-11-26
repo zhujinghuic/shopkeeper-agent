@@ -1,8 +1,8 @@
 /**
- * 聊天消息气泡组件
- * 组合展示用户问题、智能体回复、执行流程和结果表格
+ * 聊天消息组件
+ * 用户消息为右侧圆角气泡，助手消息为左侧无边框内容流
  */
-import { Bot, Copy, UserRound } from "lucide-react";
+import { Copy, Sparkles } from "lucide-react";
 import { ResultTable } from "./ResultTable";
 import { StepRail } from "./StepRail";
 import { cn, formatTime, toClipboardText } from "../lib/format";
@@ -16,63 +16,56 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
     await navigator.clipboard.writeText(text);
   };
 
+  if (isUser) {
+    return (
+      <article className="flex animate-fade-in justify-end">
+        <div className="max-w-[82%] whitespace-pre-wrap rounded-3xl rounded-tr-md bg-brandSoft px-4 py-2.5 text-[15px] leading-7 text-ink">
+          {message.content}
+        </div>
+      </article>
+    );
+  }
+
   return (
-    <article className={cn("group flex gap-3", isUser && "justify-end")}>
-      {!isUser && (
-        <div className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-parchment">
-          <Bot className="h-4 w-4" aria-hidden="true" />
-        </div>
-      )}
-
-      <div className={cn("max-w-[920px] flex-1", isUser && "flex max-w-[760px] justify-end")}>
-        <div
-          className={cn(
-            "relative border px-5 py-4 shadow-line",
-            isUser
-              ? "border-ink/80 bg-ink text-parchment"
-              : "border-ink/10 bg-[#fffaf1]/78 text-ink backdrop-blur",
-          )}
-        >
-          <div className="flex items-start justify-between gap-3">
-            <p className="whitespace-pre-wrap text-[15px] leading-7">{message.content}</p>
-            {!isUser && message.status !== "streaming" && (
-              <button
-                type="button"
-                onClick={copy}
-                className="shrink-0 rounded-full p-1.5 text-ink/45 opacity-0 outline-none transition hover:bg-ink/5 hover:text-ink focus:opacity-100 focus:ring-2 focus:ring-moss/40 group-hover:opacity-100"
-                title="复制"
-                aria-label="复制"
-              >
-                <Copy className="h-4 w-4" aria-hidden="true" />
-              </button>
-            )}
-          </div>
-
-          {message.error && (
-            <div className="mt-3 border border-tomato/30 bg-tomato/10 px-3 py-2 text-sm text-tomato">
-              {message.error}
-            </div>
-          )}
-
-          {!isUser && <StepRail steps={message.steps} />}
-          {!isUser && message.result !== undefined && <ResultTable data={message.result} />}
-
-          <div
-            className={cn(
-              "mt-3 text-xs",
-              isUser ? "text-parchment/55" : "text-ink/45",
-            )}
-          >
-            {formatTime(message.createdAt)}
-          </div>
-        </div>
+    <article className="group flex animate-fade-in gap-3">
+      <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-gradient-to-br from-brand to-[#7B8CFF] text-white shadow-soft">
+        <Sparkles className="h-4 w-4" aria-hidden="true" />
       </div>
 
-      {isUser && (
-        <div className="mt-1 grid h-9 w-9 shrink-0 place-items-center rounded-full bg-moss text-white">
-          <UserRound className="h-4 w-4" aria-hidden="true" />
+      <div className="min-w-0 flex-1">
+        <div
+          className={cn(
+            "whitespace-pre-wrap text-[15px] leading-7",
+            message.status === "streaming" ? "text-muted" : "text-ink",
+          )}
+        >
+          {message.content}
         </div>
-      )}
+
+        {message.error && (
+          <div className="mt-3 rounded-xl border border-danger/20 bg-danger/5 px-3.5 py-2.5 text-[13px] leading-6 text-danger">
+            {message.error}
+          </div>
+        )}
+
+        <StepRail steps={message.steps} />
+        {message.result !== undefined && <ResultTable data={message.result} />}
+
+        <div className="mt-2.5 flex items-center gap-1 text-[11px] text-muted/70">
+          <span>{formatTime(message.createdAt)}</span>
+          {message.status !== "streaming" && (
+            <button
+              type="button"
+              onClick={copy}
+              className="ml-1 rounded-md p-1 text-muted/70 opacity-0 transition hover:bg-brandSoft hover:text-brand focus:opacity-100 focus:outline-none group-hover:opacity-100"
+              title="复制"
+              aria-label="复制"
+            >
+              <Copy className="h-3.5 w-3.5" aria-hidden="true" />
+            </button>
+          )}
+        </div>
+      </div>
     </article>
   );
 }
