@@ -1,6 +1,6 @@
 /**
  * 全局样式入口
- * 加载 Tailwind 层并定义页面基础样式与背景纹理
+ * 加载 Tailwind 层并定义基础字体、滚动条与动效偏好
  */
 @tailwind base;
 @tailwind components;
@@ -26,7 +26,7 @@ body,
 
 body {
     margin: 0;
-    background: #f7f1e8;
+    background: #fafbff;
     overflow: hidden;
 }
 
@@ -35,19 +35,35 @@ textarea {
     font: inherit;
 }
 
-::selection {
-    background: rgba(47, 107, 79, 0.2);
+textarea {
+    caret-color: #4d6bfe;
 }
 
-.grain {
-    opacity: 0.32;
-    background-image: radial-gradient(
-        circle at 1px 1px,
-        rgba(32, 32, 29, 0.18) 1px,
-        transparent 0
-    );
-    background-size: 18px 18px;
-    mask-image: linear-gradient(to bottom, rgba(0, 0, 0, 0.7), transparent 72%);
+::selection {
+    background: rgba(77, 107, 254, 0.16);
+}
+
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #dcdfec transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background: #dcdfec;
+    border-radius: 999px;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+    background: #c9cee0;
 }
 
 @media (prefers-reduced-motion: reduce) {
