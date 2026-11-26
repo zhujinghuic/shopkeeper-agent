@@ -41,6 +41,7 @@ class QdrantClientManager:
 
 # 创建一个全局的管理器对象
 # 后续项目中的其他模块都通过它来获取同一套 Qdrant 客户端
+# 模块级别的单例，供整个项目复用同一套 Qdrant 客户端管理器，避免重复初始化，只要import时就会执行
 qdrant_client_manager = QdrantClientManager(app_config.qdrant)
 
 

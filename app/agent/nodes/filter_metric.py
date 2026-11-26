@@ -29,6 +29,7 @@ async def filter_metric(state: DataAgentState, runtime: Runtime[DataAgentContext
         metric_infos: list[MetricInfoState] = state["metric_infos"]
 
         # metric_infos 转成 YAML 后作为候选项交给模型，模型只需要返回被选中的指标名称
+        # 这里的嵌套dict格式转YAML的好处是：1. 省 token 2. 保持字段顺序
         prompt = PromptTemplate(
             template=load_prompt("filter_metric_info"),
             input_variables=["query", "metric_infos"],

@@ -2,7 +2,8 @@
 额外上下文补全节点
 
 负责在 SQL 生成前补齐不来自召回结果、但模型必须知道的运行环境信息
-当前包括日期信息和数据库方言/版本，后续可继续扩展权限、租户、时区等上下文
+当前包括日期信息和数据库方言/版本，后续可继续扩展权限、租户、时区等上下文 例子 【WorkBuddy】询问项目结构与底层逻辑
+https://workbuddy.link/p/uMsm40lfev1779lwm58fFB?shareId=7ea731a7-5890-40f7-bf2d-2ae9e5f35467&ext2=copy_link
 """
 
 from datetime import date
