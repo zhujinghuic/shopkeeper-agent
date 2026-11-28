@@ -12,7 +12,7 @@ from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
 from app.agent.llm import llm
-from app.agent.state import DataAgentState
+from app.agent.state import DataAgentState, get_effective_query
 from app.core.log import logger
 from app.prompt.prompt_loader import load_prompt
 
@@ -30,7 +30,7 @@ async def correct_sql(state: DataAgentState, runtime: Runtime[DataAgentContext])
         metric_infos = state["metric_infos"]
         date_info = state["date_info"]
         db_info = state["db_info"]
-        query = state["query"]
+        query = get_effective_query(state)
 
         # sql 是待修正的候选 SQL，error 是数据库 explain 返回的具体错误信息
         sql = state["sql"]

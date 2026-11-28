@@ -1,8 +1,9 @@
 """
 MySQL 客户端管理器
 
-统一创建和管理项目中的异步 MySQL 客户端，当前项目会同时连接两套 MySQL
-一套是保存结构化元数据的 meta 数据库，一套是模拟教学数仓的 dw 数据库
+统一创建和管理项目中的异步 MySQL 客户端，当前项目会同时连接三套 MySQL
+meta 库存放结构化元数据，dw 库模拟教学数仓，chat 库存放多轮会话记录
+后两者和 meta 分开是有意的：元数据可以由脚本随时重建，会话记录不行
 模块对外提供可复用的客户端管理器和 session 工厂
 方便脚本入口 服务层和仓储层按统一方式访问数据库
 """
@@ -53,10 +54,11 @@ class MySQLClientManager:
         await self.engine.dispose()
 
 
-# 一套连元数据库，一套连数仓模拟库
+# 三套连接各管一类数据：元数据、数仓、会话记录
 # 后续由不同 repository 按职责分别使用
 meta_mysql_client_manager = MySQLClientManager(app_config.db_meta)
 dw_mysql_client_manager = MySQLClientManager(app_config.db_dw)
+chat_mysql_client_manager = MySQLClientManager(app_config.db_chat)
 
 if __name__ == "__main__":
     dw_mysql_client_manager.init()

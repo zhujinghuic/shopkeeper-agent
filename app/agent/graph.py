@@ -2,8 +2,9 @@
 电商问数 Agent 图编排
 
 使用 LangGraph 把问数智能体的各个节点串成一条可观测的执行链路
-当前链路已经落地关键词抽取和多路召回，字段和指标走 Qdrant 向量检索，字段取值走 ES 全文检索
-整体流程先抽取用户问题关键词，再并行召回字段 字段取值和指标信息，
+入口先做多轮改写：结合会话历史把“只看华东”这类似是而非的追问补成完整问题，
+缺关键口径时短路到澄清节点，避免拿残缺信息硬生成 SQL
+改写通过后再抽取关键词、并行召回字段 字段取值和指标信息，
 随后合并召回结果 过滤候选表和指标 补充额外上下文，最后生成 校验 修正并执行 SQL
 """
 
@@ -14,6 +15,7 @@ from langgraph.graph import StateGraph
 
 from app.agent.context import DataAgentContext
 from app.agent.nodes.add_extra_context import add_extra_context
+from app.agent.nodes.clarify import clarify
 from app.agent.nodes.correct_sql import correct_sql
 from app.agent.nodes.extract_keywords import extract_keywords
 from app.agent.nodes.filter_metric import filter_metric
@@ -23,6 +25,7 @@ from app.agent.nodes.merge_retrieved_info import merge_retrieved_info
 from app.agent.nodes.recall_column import recall_column
 from app.agent.nodes.recall_metric import recall_metric
 from app.agent.nodes.recall_value import recall_value
+from app.agent.nodes.rewrite_query import rewrite_query
 from app.agent.nodes.run_sql import run_sql
 from app.agent.nodes.validate_sql import validate_sql
 from app.agent.state import DataAgentState
@@ -43,6 +46,8 @@ from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantReposit
 graph_builder = StateGraph(state_schema=DataAgentState, context_schema=DataAgentContext)
 
 # 注册节点：每个节点负责问数链路中的一个清晰步骤
+graph_builder.add_node("rewrite_query", rewrite_query)
+graph_builder.add_node("clarify", clarify)
 graph_builder.add_node("extract_keywords", extract_keywords)
 graph_builder.add_node("recall_column", recall_column)
 graph_builder.add_node("recall_value", recall_value)
@@ -56,8 +61,17 @@ graph_builder.add_node("validate_sql", validate_sql)
 graph_builder.add_node("correct_sql", correct_sql)
 graph_builder.add_node("run_sql", run_sql)
 
-# 从用户问题开始，先抽取关键词作为后续检索的基础
-graph_builder.add_edge(START, "extract_keywords")
+# 多轮改写必须排在分词之前：“那去年同期呢”这类输入里没有任何业务名词，
+# 先分词会让三路召回全部落空，所以入口固定先走改写节点
+graph_builder.add_edge(START, "rewrite_query")
+
+# 改写后判断是否缺关键口径：缺就问用户一句，直接结束；不缺才进入正常召回链路
+graph_builder.add_conditional_edges(
+    source="rewrite_query",
+    path=lambda state: "clarify" if state.get("missing_slots") else "extract_keywords",
+    path_map={"clarify": "clarify", "extract_keywords": "extract_keywords"},
+)
+graph_builder.add_edge("clarify", END)
 
 # 关键词抽取后并行进入三类召回，分别面向字段 字段值和业务指标
 graph_builder.add_edge("extract_keywords", "recall_column")

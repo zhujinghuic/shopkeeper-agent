@@ -65,3 +65,9 @@ CREATE TABLE column_metric
     metric_id VARCHAR(64) COMMENT '指标编号',
     PRIMARY KEY (column_id, metric_id)
 );
+
+/**
+  注：多轮会话记录（chat_turn / chat_session）不在 meta 库，
+  已拆到独立的 chat 库，建表脚本见 docker/mysql/chat.sql。
+  原因：meta 可以随时重建，聊天记录不行，两者不能共用一个库的清理边界。
+ */

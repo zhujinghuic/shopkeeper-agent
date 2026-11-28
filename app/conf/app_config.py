@@ -94,6 +94,8 @@ class AppConfig:
     logging: LoggingConfig
     db_meta: DBConfig
     db_dw: DBConfig
+    # 会话记录库：与元数据分开，避免重建元数据时连带清掉聊天记录
+    db_chat: DBConfig
     qdrant: QdrantConfig
     embedding: EmbeddingConfig
     es: ESConfig

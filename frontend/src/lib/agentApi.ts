@@ -11,14 +11,19 @@ type QueryOptions = {
   onEvent: (event: AgentEvent) => void;
 };
 
-export async function streamQuery(query: string, options: QueryOptions) {
+export async function streamQuery(
+  query: string,
+  sessionId: string,
+  options: QueryOptions,
+) {
   const response = await fetch(`${API_BASE_URL}/api/query`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Accept: "text/event-stream",
     },
-    body: JSON.stringify({ query }),
+    // session_id 让后端能把这一轮接到同一会话的历史上
+    body: JSON.stringify({ query, session_id: sessionId }),
     signal: options.signal,
   });
 

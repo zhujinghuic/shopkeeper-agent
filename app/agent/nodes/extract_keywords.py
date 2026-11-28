@@ -9,7 +9,7 @@ import jieba.analyse
 from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
-from app.agent.state import DataAgentState
+from app.agent.state import DataAgentState, get_effective_query
 from app.core.log import logger
 
 
@@ -21,7 +21,8 @@ async def extract_keywords(state: DataAgentState, runtime: Runtime[DataAgentCont
     writer({"type": "progress", "step": step, "status": "running"})
 
     try:
-        query = state["query"]
+        # 多轮追问时要用改写后的完整问题，原话可能只有“那华东呢”
+        query = get_effective_query(state)
 
         # 只保留更可能承载业务含义的词性，减少“的、帮我、一下”这类无检索价值的噪声
         allow_pos = (

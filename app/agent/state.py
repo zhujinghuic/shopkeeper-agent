@@ -63,7 +63,16 @@ class DBInfoState(TypedDict):
 class DataAgentState(TypedDict):
     """一次问数链路中的核心状态"""
 
-    query: str  # 用户输入的查询
+    query: str  # 用户本轮输入的原话，例如“只看华东”
+    # ===== 多轮会话相关 =====
+    session_id: str  # 会话编号，一次会话内多轮共用
+    history_text: str  # 服务层裁剪好的历史上下文，只有槽位不含结果集
+    sql_baseline: str  # 最近一次产出 SQL 的轮次，作为增量修改的基线
+    column_history: str  # 最近几轮展示过的列清单，用于跨轮引用
+    rewritten_query: str  # 结合上文补全后的完整问题，后续节点都以它为准
+    slots: dict  # 本轮结构化槽位，落库后供下一轮继承
+    missing_slots: list[dict]  # 必须澄清才能继续的槽位，非空则走澄清节点
+    # ===== 单轮召回与生成 =====
     keywords: list[str]  # 抽取的关键词
     retrieved_column_infos: list[ColumnInfo]  # 检索到的字段信息
     retrieved_metric_infos: list[MetricInfo]  # 检索到的指标信息
@@ -77,3 +86,13 @@ class DataAgentState(TypedDict):
     sql: str  # 生成或校正后的SQL
 
     error: str  # 校验SQL时出现的错误信息
+
+
+def get_effective_query(state: DataAgentState) -> str:
+    """取本轮真正要用的完整问题
+
+    多轮追问时 state["query"] 可能只有“那华东呢”，不能直接拿去分词或喂模型；
+    改写节点填好 rewritten_query 之后，后续节点统一从它取值。
+    """
+
+    return state.get("rewritten_query") or state["query"]

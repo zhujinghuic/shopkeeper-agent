@@ -12,7 +12,7 @@ from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
 from app.agent.llm import llm
-from app.agent.state import DataAgentState
+from app.agent.state import DataAgentState, get_effective_query
 from app.core.log import logger
 from app.prompt.prompt_loader import load_prompt
 
@@ -30,13 +30,19 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
         metric_infos = state["metric_infos"]
         date_info = state["date_info"]
         db_info = state["db_info"]
-        query = state["query"]
+        # 生成 SQL 依据的是改写后的完整问题，而不是本轮那句可能被省略的追问
+        query = get_effective_query(state)
+        # 上一轮 SQL 是本轮做增量修改的基线；没有就按全新问题处理
+        sql_baseline = state.get("sql_baseline") or "无"
+        column_history = state.get("column_history") or "无"
 
         prompt = PromptTemplate(
             template=load_prompt("generate_sql"),
             input_variables=[
                 "table_infos",
                 "metric_infos",
+                "sql_baseline",
+                "column_history",
                 "date_info",
                 "db_info",
                 "query",
@@ -55,6 +61,8 @@ async def generate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
                 "metric_infos": yaml.dump(
                     metric_infos, allow_unicode=True, sort_keys=False
                 ),
+                "sql_baseline": sql_baseline,
+                "column_history": column_history,
                 "date_info": yaml.dump(date_info, allow_unicode=True, sort_keys=False),
                 "db_info": yaml.dump(db_info, allow_unicode=True, sort_keys=False),
                 "query": query,

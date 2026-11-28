@@ -10,6 +10,8 @@ SQL 生成闭环中的数据库环境读取 SQL 校验和最终查询执行也�
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.serialization import rows_to_jsonable
+
 
 class DWMySQLRepository:
     """负责查询数仓真实表结构和字段样例值"""
@@ -49,6 +51,11 @@ class DWMySQLRepository:
         await self.session.execute(text(sql))
 
     async def run(self, sql: str) -> list[dict]:
-        """执行最终 SQL，并把 SQLAlchemy 行对象转换成前端更易消费的字典列表"""
+        """执行最终 SQL，并把 SQLAlchemy 行对象转换成前端更易消费的字典列表
+
+        DECIMAL / 日期等类型要先转成 float、str，
+        否则 Decimal 既进不了 JSON 列，也无法 SSE 序列化成数字
+        """
+
         result = await self.session.execute(text(sql))
-        return [dict(row) for row in result.mappings().fetchall()]
+        return rows_to_jsonable([dict(row) for row in result.mappings().fetchall()])

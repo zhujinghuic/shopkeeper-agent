@@ -15,15 +15,20 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.clients.embedding_client_manager import embedding_client_manager
 from app.clients.es_client_manager import es_client_manager
 from app.clients.mysql_client_manager import (
+    chat_mysql_client_manager,
     dw_mysql_client_manager,
     meta_mysql_client_manager,
 )
 from app.clients.qdrant_client_manager import qdrant_client_manager
 from app.repositories.es.value_es_repository import ValueESRepository
+from app.repositories.mysql.chat.chat_memory_mysql_repository import (
+    ChatMemoryMySQLRepository,
+)
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
 from app.repositories.mysql.meta.meta_mysql_repository import MetaMySQLRepository
 from app.repositories.qdrant.column_qdrant_repository import ColumnQdrantRepository
 from app.repositories.qdrant.metric_qdrant_repository import MetricQdrantRepository
+from app.services.chat_session_service import ChatSessionService
 from app.services.query_service import QueryService
 
 
@@ -41,6 +46,35 @@ async def get_meta_mysql_repository(
     """基于请求级 Session 创建元数据仓储"""
 
     return MetaMySQLRepository(session)
+
+
+async def get_chat_session():
+    """创建一次请求内使用的会话库 Session
+
+    会话记录放在独立的 chat 库，和元数据不是同一个连接：
+    元数据可以随时重建，聊天记录不能，两者的生命周期和备份边界都不一样。
+    """
+
+    async with chat_mysql_client_manager.session_factory() as chat_session:
+        yield chat_session
+
+
+async def get_chat_memory_repository(
+    session: Annotated[AsyncSession, Depends(get_chat_session)],
+) -> ChatMemoryMySQLRepository:
+    """基于会话库的请求级 Session 创建会话仓储"""
+
+    return ChatMemoryMySQLRepository(session)
+
+
+async def get_chat_session_service(
+    chat_memory_repository: Annotated[
+        ChatMemoryMySQLRepository, Depends(get_chat_memory_repository)
+    ],
+) -> ChatSessionService:
+    """组装会话列表与历史查询服务"""
+
+    return ChatSessionService(chat_memory_repository)
 
 
 async def get_embedding_client() -> HuggingFaceEndpointEmbeddings:
@@ -97,6 +131,9 @@ async def get_query_service(
         MetricQdrantRepository, Depends(get_metric_qdrant_repository)
     ],
     value_es_repository: Annotated[ValueESRepository, Depends(get_value_es_repository)],
+    chat_memory_repository: Annotated[
+        ChatMemoryMySQLRepository, Depends(get_chat_memory_repository)
+    ],
 ) -> QueryService:
     """组装一次查询所需的业务服务"""
 
@@ -108,4 +145,5 @@ async def get_query_service(
         column_qdrant_repository=column_qdrant_repository,
         metric_qdrant_repository=metric_qdrant_repository,
         value_es_repository=value_es_repository,
+        chat_memory_repository=chat_memory_repository,
     )

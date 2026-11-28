@@ -23,6 +23,15 @@ db_dw:
   password: dili123
   database: dw
 
+# 会话记录单独一个库：它和元数据的生命周期完全不同，
+# meta 可以随时用脚本重建，chat_turn 丢了就找不回来，不能混在一起
+db_chat:
+  host: localhost
+  port: 3307
+  user: didilili
+  password: dili123
+  database: chat
+
 qdrant:
   host: localhost
   port: 6343
