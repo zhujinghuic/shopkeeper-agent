@@ -25,6 +25,7 @@ from app.agent.state import DataAgentState
 from app.core.log import logger
 from app.core.serialization import rows_to_jsonable
 from app.entities.chat_turn import ChatTurn
+from app.entities.sql_audit import SQLAudit
 from app.repositories.es.value_es_repository import ValueESRepository
 from app.repositories.mysql.chat.chat_memory_mysql_repository import (
     ChatMemoryMySQLRepository,
@@ -125,13 +126,20 @@ class QueryService:
             yield self._sse({"type": "error", "message": str(e)})
 
         # 落库放在响应之后：即使写历史失败，用户也已经拿到结果
+        seq: int | None = None
         try:
-            await self._save_turn(
+            seq = await self._save_turn(
                 session_id, query, final_state, row_count, result_rows
             )
         except Exception as e:
             # 用 exception 打出堆栈：之前只打 warning，Decimal 序列化失败这类问题很难被发现
             logger.exception(f"保存会话记录失败：{e}")
+
+        # 审计独立于会话记录：会话写失败也要留下这次 SQL 执行痕迹
+        try:
+            await self._save_audit(session_id, seq, query, final_state, row_count)
+        except Exception as e:
+            logger.warning(f"保存 SQL 审计记录失败：{e}")
 
     async def _load_context(self, session_id: str, query: str) -> tuple[str, str, str]:
         """读取并压缩会话历史；出现强指代时额外按关键词回捞更早的轮次
@@ -179,13 +187,16 @@ class QueryService:
         final_state: dict,
         row_count: int | None,
         result_rows: list | None,
-    ) -> None:
-        """把本轮问答落库，供下一轮继承，同时刷新左侧会话列表"""
+    ) -> int | None:
+        """把本轮问答落库，供下一轮继承，同时刷新左侧会话列表
+
+        返回本轮 seq，供审计记录关联；没有落库时返回 None。
+        """
 
         rewritten_query = final_state.get("rewritten_query")
         if not rewritten_query:
             # 改写节点既没产出也没降级结果时不落库，避免污染历史
-            return
+            return None
 
         slots = dict(final_state.get("slots") or {})
         missing = final_state.get("missing_slots") or []
@@ -193,14 +204,20 @@ class QueryService:
             # 澄清轮也落库：用户下一句“2025 年”要接着这一轮才能补全
             slots["missing"] = [item.get("question") for item in missing]
 
+        if final_state.get("intent") == "unsupported":
+            # 拒绝轮同样落库：会话列表要看到这条记录，下一轮改写也要知道上一轮被拒过，
+            # 否则用户紧接着说“那查一下呢”，历史里只留下一条“删除……”把它带偏
+            slots["rejected"] = final_state.get("reject_reason") or "不支持的请求"
+
         # 结果集里的列名是事实，比模型自述的槽位可靠：
         # 改写模型漏抽 select_columns 时用实际返回的列兜底，否则下一轮继承不到“上一轮展示了哪些列”
         if result_rows:
             slots["select_columns"] = list(result_rows[0].keys())
 
+        seq = await self.chat_memory_repository.next_seq(session_id)
         turn = ChatTurn(
             session_id=session_id,
-            seq=await self.chat_memory_repository.next_seq(session_id),
+            seq=seq,
             user_query=query,
             rewritten_query=rewritten_query,
             slots=slots,
@@ -213,6 +230,57 @@ class QueryService:
         await self.chat_memory_repository.append_turn(
             turn, session_title=self._make_title(rewritten_query)
         )
+        return seq
+
+    async def _save_audit(
+        self,
+        session_id: str,
+        seq: int | None,
+        query: str,
+        final_state: dict,
+        row_count: int | None,
+    ) -> None:
+        """把本轮的安全判定与执行情况落审计表
+
+        两类都要写：
+        1. 走到 SQL 的轮次，记放行还是被白名单拦下；
+        2. 被意图判断直接拒绝的轮次（没有 SQL），记“用户要求做了什么”——
+           这一类比白名单拦截更值得留痕：它是唯一能看出有人在试图删改数据的线索。
+
+        澄清轮和召回阶段就失败的情况既没有 sql_guard 也没有 sql，不写审计。
+        """
+
+        guard = final_state.get("sql_guard") or {}
+        sql = final_state.get("sql")
+        rejected = final_state.get("intent") == "unsupported"
+        if not guard and not sql and not rejected:
+            return
+
+        if rejected:
+            # 拒绝发生在改写阶段，此时还没有 SQL，所以 sql 留空，
+            # 用 guard_rule 标记拒绝原因，方便和"白名单拦截"区分开
+            allowed = False
+            rule = "intent_unsupported"
+            reason = final_state.get("reject_reason") or "超出只读范围的请求"
+        else:
+            allowed = bool(guard.get("allowed", True))
+            rule = guard.get("rule") or None
+            reason = guard.get("reason") or None
+
+        audit = SQLAudit(
+            session_id=session_id,
+            seq=seq,
+            user_query=query,
+            rewritten_query=final_state.get("rewritten_query"),
+            sql=sql,
+            allowed=allowed,
+            guard_rule=rule,
+            guard_reason=reason,
+            # 被拦截时没有结果集，别把上一轮或本轮的残留行数记到这条审计上
+            row_count=row_count if allowed else None,
+            elapsed_ms=final_state.get("sql_elapsed_ms"),
+        )
+        await self.chat_memory_repository.append_audit(audit)
 
     @staticmethod
     def _make_title(rewritten_query: str) -> str:

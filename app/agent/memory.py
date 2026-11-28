@@ -94,6 +94,10 @@ def format_turn(turn: ChatTurn, compact: bool = False) -> str:
     if missing:
         parts.append(f"待确认：{'；'.join(missing)}")
 
+    # 被拒绝的轮次要标明，否则下一句“那查一下呢”会让改写把被拒的意图当成新需求继承
+    if slots.get("rejected"):
+        parts.append(f"已拒绝：{slots['rejected']}")
+
     line = "｜".join(parts)
     if len(line) > TURN_LINE_MAX_CHARS:
         line = line[:TURN_LINE_MAX_CHARS] + "…"

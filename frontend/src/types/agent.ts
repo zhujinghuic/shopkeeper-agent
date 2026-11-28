@@ -42,13 +42,20 @@ export type ClarifyEvent = {
   slots?: string[];
 };
 
+/** 拒绝事件：问数只读，删除/更新/导出类请求在改写阶段就被挡下 */
+export type RejectEvent = {
+  type: "reject";
+  reason: string;
+};
+
 export type AgentEvent =
   | ProgressEvent
   | ResultEvent
   | ErrorEvent
   | SessionEvent
   | RewriteEvent
-  | ClarifyEvent;
+  | ClarifyEvent
+  | RejectEvent;
 
 export type StepState = {
   step: string;
@@ -71,4 +78,6 @@ export type ChatMessage = {
   rewritten?: { query: string; fromHistory: boolean };
   /** 这条助手消息是在向用户确认口径 */
   clarify?: boolean;
+  /** 这条助手消息是在说明请求超出只读范围 */
+  rejected?: boolean;
 };

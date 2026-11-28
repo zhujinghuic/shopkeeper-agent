@@ -3,7 +3,7 @@
  * 用户消息为右侧圆角气泡，助手消息为左侧无边框内容流
  */
 import { useState } from "react";
-import { Check, CircleHelp, Copy, CornerDownRight, Sparkles } from "lucide-react";
+import { Check, CircleHelp, Copy, CornerDownRight, ShieldAlert, Sparkles } from "lucide-react";
 import { ResultTable } from "./ResultTable";
 import { StepRail } from "./StepRail";
 import { cn, copyText, formatTime } from "../lib/format";
@@ -86,6 +86,13 @@ export function MessageBubble({ message }: { message: ChatMessage }) {
           <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-brandSoft px-2.5 py-1 text-[11px] font-medium text-brand">
             <CircleHelp className="h-3 w-3" aria-hidden="true" />
             需要你补充一下
+          </div>
+        )}
+
+        {message.rejected && (
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-danger/10 px-2.5 py-1 text-[11px] font-medium text-danger">
+            <ShieldAlert className="h-3 w-3" aria-hidden="true" />
+            只支持查询
           </div>
         )}
 

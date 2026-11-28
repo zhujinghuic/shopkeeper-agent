@@ -70,6 +70,9 @@ class DataAgentState(TypedDict):
     sql_baseline: str  # 最近一次产出 SQL 的轮次，作为增量修改的基线
     column_history: str  # 最近几轮展示过的列清单，用于跨轮引用
     rewritten_query: str  # 结合上文补全后的完整问题，后续节点都以它为准
+    # 只读意图：unsupported 表示用户要删改数据或做与问数无关的事，走 reject 节点直接结束
+    intent: str
+    reject_reason: str  # intent 为 unsupported 时给用户看的说明
     slots: dict  # 本轮结构化槽位，落库后供下一轮继承
     missing_slots: list[dict]  # 必须澄清才能继续的槽位，非空则走澄清节点
     # ===== 单轮召回与生成 =====
@@ -84,6 +87,9 @@ class DataAgentState(TypedDict):
     db_info: DBInfoState  # 数据库方言和版本信息
 
     sql: str  # 生成或校正后的SQL
+    # 安全校验结论（allowed / rule / reason），通过和拦截都会写，审计表要用
+    sql_guard: dict
+    sql_elapsed_ms: int  # SQL 执行耗时，写入审计
 
     error: str  # 校验SQL时出现的错误信息
 

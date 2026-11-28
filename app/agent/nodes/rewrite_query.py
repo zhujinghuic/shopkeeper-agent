@@ -52,6 +52,15 @@ class RewriteResult(BaseModel):
     missing_slots: list[MissingSlot] = Field(
         default_factory=list, description="必须澄清才能继续的槽位"
     )
+    # 问数只读：要求删改数据、建表、导出文件的请求要在入口挡掉，
+    # 否则生成 SQL 的阶段会把“删除”理解成“把这些数据查出来”，出现“看似执行成功”的假象
+    intent: str = Field(
+        "query",
+        description="query 表示只读查询；unsupported 表示要求改数据或与问数无关",
+    )
+    reject_reason: str = Field(
+        "", description="intent 为 unsupported 时给用户看的一句说明"
+    )
 
 
 async def rewrite_query(state: DataAgentState, runtime: Runtime[DataAgentContext]):
@@ -81,13 +90,26 @@ async def rewrite_query(state: DataAgentState, runtime: Runtime[DataAgentContext
         # 改写失败不能让整次查询失败：退回原始问题，按单轮处理
         logger.warning(f"{step} failed, fallback to raw query: {e}")
         writer({"type": "progress", "step": step, "status": "success"})
-        return {"rewritten_query": query, "slots": {}, "missing_slots": []}
+        return {
+            "rewritten_query": query,
+            "slots": {},
+            "missing_slots": [],
+            # 降级时无法判断意图，按查询处理：SQL 白名单仍然守着最后一道
+            "intent": "query",
+            "reject_reason": "",
+        }
 
     standalone_query = (result.standalone_query or "").strip() or query
     slots = result.slots.model_dump()
     missing_slots = [item.model_dump() for item in result.missing_slots]
 
-    logger.info(f"改写结果：{query} -> {standalone_query}，槽位：{slots}")
+    # 只认两种意图，模型偶尔会返回别的词，按正常查询处理，避免误杀
+    intent = "unsupported" if result.intent == "unsupported" else "query"
+    reject_reason = (result.reject_reason or "").strip()
+
+    logger.info(
+        f"改写结果：{query} -> {standalone_query}，意图：{intent}，槽位：{slots}"
+    )
 
     writer({"type": "progress", "step": step, "status": "success"})
     # 前端用这个事件提示“已结合上文理解为……”，避免多轮时答案看起来莫名其妙
@@ -103,4 +125,6 @@ async def rewrite_query(state: DataAgentState, runtime: Runtime[DataAgentContext
         "rewritten_query": standalone_query,
         "slots": slots,
         "missing_slots": missing_slots,
+        "intent": intent,
+        "reject_reason": reject_reason,
     }

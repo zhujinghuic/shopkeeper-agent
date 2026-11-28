@@ -24,7 +24,9 @@ class ChatSessionService:
 
         return await self.chat_memory_repository.list_sessions(limit)
 
-    async def get_detail(self, session_id: str) -> tuple[ChatSession, list[dict]] | None:
+    async def get_detail(
+        self, session_id: str
+    ) -> tuple[ChatSession, list[dict]] | None:
         """把某个会话的全部轮次还原成前端可直接渲染的消息列表"""
 
         chat_session = await self.chat_memory_repository.get_session(session_id)
@@ -60,10 +62,15 @@ class ChatSessionService:
 
     @staticmethod
     def _assistant_message(turn: ChatTurn) -> dict:
-        """助手消息按落库时的结果类型还原：澄清 / 有数据 / 无数据 / 没结果"""
+        """助手消息按落库时的结果类型还原：拒绝 / 澄清 / 有数据 / 无数据 / 没结果"""
 
         missing = (turn.slots or {}).get("missing") or []
-        if missing:
+        rejected = (turn.slots or {}).get("rejected") or ""
+        if rejected:
+            # 只读边界之外的请求：回放时要还原成拒绝提示，不能显示成“查询成功”
+            content = str(rejected)
+            clarify = False
+        elif missing:
             content = "；".join(str(item) for item in missing)
             clarify = True
         elif turn.row_count is None:
@@ -84,5 +91,6 @@ class ChatSessionService:
             "sql": turn.sql,
             "row_count": turn.row_count,
             "clarify": clarify,
+            "rejected": bool(rejected),
             "created_at": turn.created_at,
         }

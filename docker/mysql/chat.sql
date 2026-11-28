@@ -59,3 +59,32 @@ CREATE TABLE chat_session
     remark     TEXT COMMENT '备注',
     KEY idx_updated_at (updated_at)
 );
+
+
+/**
+  SQL 安全审计表
+  每次真正走到执行的 SQL（包括被白名单拦下的）都留一行，
+  另外被意图判断直接拒绝的请求也留一行（此时没有 SQL，靠 guard_rule=intent_unsupported 标记），
+  因为"有人试图删改数据"是比"白名单拦了一条 SELECT"更值得追的线索。
+  用于回答"昨天那个数是怎么查出来的"和"谁在什么时候试图查了不该查的表"。
+  它不是链路追踪，只记录与安全相关的关键事实：谁问的、生成什么、放行还是拦下、执行了多久。
+ */
+DROP TABLE IF EXISTS sql_audit;
+CREATE TABLE sql_audit
+(
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '自增主键',
+    session_id      VARCHAR(64) NOT NULL COMMENT '会话编号',
+    seq             INT COMMENT '会话内轮次',
+    user_query      TEXT COMMENT '用户原话',
+    rewritten_query TEXT COMMENT '改写后的完整问题',
+    sql_text        TEXT COMMENT '待执行或实际执行的SQL',
+    allowed         TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否放行：1放行 0拦截',
+    guard_rule      VARCHAR(64) COMMENT '命中的安全规则，例如 table_not_allowed',
+    guard_reason    VARCHAR(500) COMMENT '规则说明，给人看的',
+    row_count       INT COMMENT '结果行数，被拦截时为空',
+    elapsed_ms      INT COMMENT '执行耗时毫秒，被拦截时为空',
+    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_session_seq (session_id, seq),
+    KEY idx_created_at (created_at)
+);
+

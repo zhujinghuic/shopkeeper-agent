@@ -22,6 +22,7 @@ export type SessionMessage = {
   result?: unknown;
   row_count?: number | null;
   clarify?: boolean;
+  rejected?: boolean;
   created_at?: string | null;
 };
 

@@ -15,10 +15,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.entities.chat_session import ChatSession
 from app.entities.chat_turn import ChatTurn
+from app.entities.sql_audit import SQLAudit
 from app.models.chat_session import ChatSessionMySQL
 from app.models.chat_turn import ChatTurnMySQL
+from app.models.sql_audit import SQLAuditMySQL
 from app.repositories.mysql.chat.mappers.chat_session_mapper import ChatSessionMapper
 from app.repositories.mysql.chat.mappers.chat_turn_mapper import ChatTurnMapper
+from app.repositories.mysql.chat.mappers.sql_audit_mapper import SQLAuditMapper
 
 
 class ChatMemoryMySQLRepository:
@@ -130,3 +133,25 @@ class ChatMemoryMySQLRepository:
             delete(ChatSessionMySQL).where(ChatSessionMySQL.session_id == session_id)
         )
         await self.session.commit()
+
+    async def append_audit(self, audit: SQLAudit) -> None:
+        """写一条 SQL 安全审计记录
+
+        审计和会话记录同库但不同表：它按时间线独立增长，
+        不参与会话列表和上下文组装，只用于排查"这条 SQL 为什么被执行/被拦"。
+        """
+
+        self.session.add(SQLAuditMapper.to_model(audit))
+        await self.session.commit()
+
+    async def list_audits(self, session_id: str, limit: int = 50) -> list[SQLAudit]:
+        """按会话倒序取最近的审计记录，供排查越权尝试或慢查询"""
+
+        stmt = (
+            select(SQLAuditMySQL)
+            .where(SQLAuditMySQL.session_id == session_id)
+            .order_by(SQLAuditMySQL.id.desc())
+            .limit(limit)
+        )
+        result = await self.session.scalars(stmt)
+        return [SQLAuditMapper.to_entity(model) for model in result.all()]

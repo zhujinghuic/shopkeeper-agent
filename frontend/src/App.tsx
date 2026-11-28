@@ -62,6 +62,7 @@ function toChatMessages(messages: SessionMessage[]): ChatMessage[] {
     result: message.result ?? undefined,
     sql: message.sql ?? undefined,
     clarify: message.clarify ?? false,
+    rejected: message.rejected ?? false,
   }));
 }
 
@@ -232,6 +233,16 @@ export default function App() {
               status: "done",
               clarify: true,
               content: event.question,
+            };
+          }
+
+          if (event.type === "reject") {
+            // 只读边界：不再往下生成 SQL，直接说明为什么不支持
+            return {
+              ...message,
+              status: "done",
+              rejected: true,
+              content: event.reason,
             };
           }
 

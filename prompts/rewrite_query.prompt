@@ -44,8 +44,22 @@
   }},
   "missing_slots": [
     {{"slot": "槽位名", "question": "面向用户的追问"}}
-  ]
+  ],
+  "intent": "query 或 unsupported",
+  "reject_reason": "intent 为 unsupported 时给用户看的一句说明"
 }}
 5. standalone_query 要通顺，不要保留“只看”“那就”“再”这类口语残留，也不要出现“第 1 轮”之类的会话标记。
 6. 一旦输出 missing_slots，standalone_query 必须保留用户原话，不要把你猜测的值写进去，
    否则这一轮的猜测会被落库，下一轮改写会把它当成事实继续继承。
+7. intent（这条请求是否属于“只读问数”）：
+   - 默认输出 "query"。筛选、分组、排序、对比、换字段展示都算查询。
+   - 出现下面任一情况输出 "unsupported"，并在 reject_reason 里写一句面向用户的简短说明：
+     a) 要求改动数据：删除、删掉、清空、更新、修改、改成、插入、新增记录、批量改价或改状态；
+     b) 要求改动结构：建表、改表、加字段、加索引、删表、truncate、drop；
+     c) 要求绕过系统：读取系统表、把结果导出成文件、执行任意 SQL。
+   - 注意区分“数据清洗类分析”和“真的改数据”：「删除重复订单后再统计」「剔除异常值后算平均」
+     这类是要先筛再算，属于 query；只有用户确实要改动库里数据时才输出 unsupported。
+   - standalone_query 一律按用户原意写，不要为了让它能生成 SQL 就把“删除”改写成“查询”，
+     否则下游会把删除请求当成一次正常查询，返回“执行成功”的假象。
+   - 输出 unsupported 时 standalone_query 照样写用户这句请求的完整表述，
+     slots 按字面抽（不臆造过滤条件），missing_slots 保持空数组。

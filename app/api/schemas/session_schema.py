@@ -28,6 +28,8 @@ class SessionMessageSchema(BaseModel):
     result: list | None = None
     row_count: int | None = None
     clarify: bool = False
+    # 超出只读范围的请求（删除、更新、导出等），回放时按拒绝提示展示
+    rejected: bool = False
     created_at: datetime | None = None
 
 

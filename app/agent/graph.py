@@ -25,6 +25,7 @@ from app.agent.nodes.merge_retrieved_info import merge_retrieved_info
 from app.agent.nodes.recall_column import recall_column
 from app.agent.nodes.recall_metric import recall_metric
 from app.agent.nodes.recall_value import recall_value
+from app.agent.nodes.reject import reject
 from app.agent.nodes.rewrite_query import rewrite_query
 from app.agent.nodes.run_sql import run_sql
 from app.agent.nodes.validate_sql import validate_sql
@@ -47,6 +48,7 @@ graph_builder = StateGraph(state_schema=DataAgentState, context_schema=DataAgent
 
 # 注册节点：每个节点负责问数链路中的一个清晰步骤
 graph_builder.add_node("rewrite_query", rewrite_query)
+graph_builder.add_node("reject", reject)
 graph_builder.add_node("clarify", clarify)
 graph_builder.add_node("extract_keywords", extract_keywords)
 graph_builder.add_node("recall_column", recall_column)
@@ -65,12 +67,30 @@ graph_builder.add_node("run_sql", run_sql)
 # 先分词会让三路召回全部落空，所以入口固定先走改写节点
 graph_builder.add_edge(START, "rewrite_query")
 
-# 改写后判断是否缺关键口径：缺就问用户一句，直接结束；不缺才进入正常召回链路
+
+# 改写后先判意图，再判口径：
+# 要求删改数据的请求不能往下走（生成 SQL 时会把它降级成"查出来"，返回执行成功的假象），
+# 直接到 reject 给用户一句说明；正常请求才看是否缺关键口径
+def _route_after_rewrite(state: DataAgentState) -> str:
+    """改写之后的唯一分岔点：拒绝 / 澄清 / 正常召回"""
+
+    if state.get("intent") == "unsupported":
+        return "reject"
+    if state.get("missing_slots"):
+        return "clarify"
+    return "extract_keywords"
+
+
 graph_builder.add_conditional_edges(
     source="rewrite_query",
-    path=lambda state: "clarify" if state.get("missing_slots") else "extract_keywords",
-    path_map={"clarify": "clarify", "extract_keywords": "extract_keywords"},
+    path=_route_after_rewrite,
+    path_map={
+        "reject": "reject",
+        "clarify": "clarify",
+        "extract_keywords": "extract_keywords",
+    },
 )
+graph_builder.add_edge("reject", END)
 graph_builder.add_edge("clarify", END)
 
 # 关键词抽取后并行进入三类召回，分别面向字段 字段值和业务指标
