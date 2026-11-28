@@ -81,7 +81,7 @@
     - 改写节点先判只读意图：删除、更新、建表、导出文件的请求直接拒绝，不会把「删除」降级成「查出来」返回一个执行成功的假象。
     - 用 AST（`sqlglot`）而不是正则做校验：只允许单条 SELECT，拦截 DDL/DML、系统库（`information_schema` 等）、危险函数（`SLEEP`/`LOAD_FILE`/`INTO OUTFILE`）和白名单外的表，并强制行数上限。
     - `validate_sql` 与 `run_sql` 设两道闸门：`correct_sql` 修正后的 SQL 不会回到校验节点，所以执行前必须再校验一次。
-    - 每次执行的 SQL 落 `sql_audit` 表，记录放行/拦截规则、行数与耗时，可回溯“这个数是怎么查出来的”；被意图判断拒绝的请求也留一行（`guard_rule=intent_unsupported`），因为“有人试图删改数据”比“白名单拦了一条 SELECT”更值得追。
+    - 每次安全判定都落 `sql_audit`，用 `stage` 区分 `intent`（意图拒绝）/ `validate`（校验节点）/ `run`（执行前闸门）：被拦下又经 `correct_sql` 改好时，“拦下”和“放行”各留一行，能看出改之前错在哪、改之后长什么样；被拒绝的请求也留痕（`guard_rule=intent_unsupported`），因为“有人试图删改数据”比“白名单拦了一条 SELECT”更值得追。
 - **工程化后端结构清晰**
     - 基于 `FastAPI + LangGraph + Repository + Client Manager` 组织配置、客户端、仓储层、服务层与智能体流程，便于维护和扩展。
 - **不仅有实战代码，还有完整配套教程文档**

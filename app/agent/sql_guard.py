@@ -80,6 +80,18 @@ def allowed_tables_from_infos(table_infos) -> list[str]:
     return names
 
 
+def guard_record(guard: GuardResult, stage: str, sql: str | None = None) -> dict:
+    """把一次判定组装成审计记录
+
+    节点每次只 append 这一条，由 State 的 reducer 累积；
+    stage 用来区分意图判断、校验节点和执行前闸门——
+    同一条 SQL 可能先被拦下、被 correct_sql 改好后又被放行，两条都要留痕。
+    记的是判定时那条 SQL（可能被补过 LIMIT），方便回溯到底拦了什么、放了什么。
+    """
+
+    return {"stage": stage, "sql": guard.sql if sql is None else sql, **guard.as_dict()}
+
+
 def guard_sql(
     sql: str,
     allowed_tables: list[str] | None = None,

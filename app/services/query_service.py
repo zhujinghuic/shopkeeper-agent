@@ -87,6 +87,8 @@ class QueryService:
             history_text=history_text,
             sql_baseline=sql_baseline,
             column_history=column_history,
+            # 显式给空列表：每轮从零开始累积判定，避免上一轮的记录混进来
+            sql_guards=[],
         )
         # Context 保存本次图执行需要复用的外部依赖，节点通过 runtime.context 读取
         context = DataAgentContext(
@@ -240,47 +242,51 @@ class QueryService:
         final_state: dict,
         row_count: int | None,
     ) -> None:
-        """把本轮的安全判定与执行情况落审计表
+        """把本轮每一次安全判定落审计表
 
-        两类都要写：
-        1. 走到 SQL 的轮次，记放行还是被白名单拦下；
-        2. 被意图判断直接拒绝的轮次（没有 SQL），记“用户要求做了什么”——
-           这一类比白名单拦截更值得留痕：它是唯一能看出有人在试图删改数据的线索。
+        一次问数可能留多行，按 stage 区分：
+        intent —— 意图判断直接拒绝，此时没有 SQL，记“用户要求做了什么”；
+        validate —— 校验节点的白名单结论；
+        run —— 执行前闸门的最终结论（只有这条会带行数和耗时）。
 
-        澄清轮和召回阶段就失败的情况既没有 sql_guard 也没有 sql，不写审计。
+        correct_sql 把被拦的 SQL 改好后会再判定一次，所以“拦下 + 放行”会各留一行，
+        这正是排查“改之前错在哪、改之后长什么样”的依据。
+        澄清轮和召回阶段就失败的情况一条判定都没有，不写审计。
         """
 
-        guard = final_state.get("sql_guard") or {}
-        sql = final_state.get("sql")
-        rejected = final_state.get("intent") == "unsupported"
-        if not guard and not sql and not rejected:
-            return
+        records = list(final_state.get("sql_guards") or [])
+        if final_state.get("intent") == "unsupported":
+            # 拒绝发生在改写阶段，还没有任何 SQL；用 guard_rule 标记原因，
+            # 方便和白名单拦截区分开——两者的处置方式完全不同
+            records.append(
+                {
+                    "stage": "intent",
+                    "sql": None,
+                    "allowed": False,
+                    "rule": "intent_unsupported",
+                    "reason": final_state.get("reject_reason") or "超出只读范围的请求",
+                }
+            )
 
-        if rejected:
-            # 拒绝发生在改写阶段，此时还没有 SQL，所以 sql 留空，
-            # 用 guard_rule 标记拒绝原因，方便和"白名单拦截"区分开
-            allowed = False
-            rule = "intent_unsupported"
-            reason = final_state.get("reject_reason") or "超出只读范围的请求"
-        else:
-            allowed = bool(guard.get("allowed", True))
-            rule = guard.get("rule") or None
-            reason = guard.get("reason") or None
-
-        audit = SQLAudit(
-            session_id=session_id,
-            seq=seq,
-            user_query=query,
-            rewritten_query=final_state.get("rewritten_query"),
-            sql=sql,
-            allowed=allowed,
-            guard_rule=rule,
-            guard_reason=reason,
-            # 被拦截时没有结果集，别把上一轮或本轮的残留行数记到这条审计上
-            row_count=row_count if allowed else None,
-            elapsed_ms=final_state.get("sql_elapsed_ms"),
-        )
-        await self.chat_memory_repository.append_audit(audit)
+        for record in records:
+            allowed = bool(record.get("allowed", True))
+            # 只有执行前闸门放行的那条才真的跑过查询，行数只挂给它
+            executed = record.get("stage") == "run" and allowed
+            audit = SQLAudit(
+                session_id=session_id,
+                seq=seq,
+                user_query=query,
+                rewritten_query=final_state.get("rewritten_query"),
+                sql=record.get("sql"),
+                stage=record.get("stage") or None,
+                allowed=allowed,
+                guard_rule=record.get("rule") or None,
+                guard_reason=record.get("reason") or None,
+                # 被拦截时没有结果集，别把上一轮或本轮的残留行数记到这条审计上
+                row_count=row_count if executed else None,
+                elapsed_ms=final_state.get("sql_elapsed_ms") if executed else None,
+            )
+            await self.chat_memory_repository.append_audit(audit)
 
     @staticmethod
     def _make_title(rewritten_query: str) -> str:

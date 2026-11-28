@@ -7,7 +7,8 @@ State 是 LangGraph 各节点之间传递和更新的共享数据
 SQL 生成闭环会继续写入候选 SQL 以及校验错误信息，用于控制校正或执行分支
 """
 
-from typing import TypedDict
+from operator import add
+from typing import Annotated, TypedDict
 
 from app.entities.column_info import ColumnInfo
 from app.entities.metric_info import MetricInfo
@@ -87,8 +88,10 @@ class DataAgentState(TypedDict):
     db_info: DBInfoState  # 数据库方言和版本信息
 
     sql: str  # 生成或校正后的SQL
-    # 安全校验结论（allowed / rule / reason），通过和拦截都会写，审计表要用
-    sql_guard: dict
+    # 每次安全判定追加一条（stage=intent/validate/run + allowed/rule/reason/sql）
+    # 必须用 reducer 累积：correct_sql 把被拦的 SQL 改好之后会再判定一次，
+    # 如果只是覆盖，前面那次“拦下”的记录就没了，审计只剩一条放行
+    sql_guards: Annotated[list[dict], add]
     sql_elapsed_ms: int  # SQL 执行耗时，写入审计
 
     error: str  # 校验SQL时出现的错误信息

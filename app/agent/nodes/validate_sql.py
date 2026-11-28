@@ -13,7 +13,11 @@ SQL 校验节点
 from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
-from app.agent.sql_guard import allowed_tables_from_infos, guard_sql
+from app.agent.sql_guard import (
+    allowed_tables_from_infos,
+    guard_record,
+    guard_sql,
+)
 from app.agent.state import DataAgentState
 from app.core.log import logger
 from app.repositories.mysql.dw.dw_mysql_repository import DWMySQLRepository
@@ -37,7 +41,7 @@ async def validate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
             writer({"type": "progress", "step": step, "status": "success"})
             return {
                 "error": f"[安全校验] {guard.reason}",
-                "sql_guard": guard.as_dict(),
+                "sql_guards": [guard_record(guard, "validate")],
             }
 
         # 通过校验时 SQL 可能被补了 LIMIT，必须写回 state，否则执行的是旧语句
@@ -55,13 +59,17 @@ async def validate_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]
             return {
                 "sql": guard.sql,
                 "error": None,
-                "sql_guard": guard.as_dict(),
+                "sql_guards": [guard_record(guard, "validate")],
             }
         except Exception as e:
             # 不抛出异常中断图执行，而是把错误写入状态，供条件分支进入 correct_sql
+            # 这条审计的 allowed 仍为 True：安全白名单是放行的，错在语法，由 error 表达
             logger.info(f"SQL语法错误：{str(e)}")
             writer({"type": "progress", "step": step, "status": "success"})
-            return {"error": str(e), "sql_guard": guard.as_dict()}
+            return {
+                "error": str(e),
+                "sql_guards": [guard_record(guard, "validate")],
+            }
 
     except Exception as e:
         logger.error(f"{step} failed: {e}")

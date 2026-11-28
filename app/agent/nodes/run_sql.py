@@ -13,7 +13,11 @@ import time
 from langgraph.runtime import Runtime
 
 from app.agent.context import DataAgentContext
-from app.agent.sql_guard import allowed_tables_from_infos, guard_sql
+from app.agent.sql_guard import (
+    allowed_tables_from_infos,
+    guard_record,
+    guard_sql,
+)
 from app.agent.state import DataAgentState
 from app.core.log import logger
 
@@ -40,7 +44,10 @@ async def run_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]):
                     "message": f"SQL 被安全策略拦截：{guard.reason}",
                 }
             )
-            return {"error": guard.reason, "sql_guard": guard.as_dict()}
+            return {
+                "error": guard.reason,
+                "sql_guards": [guard_record(guard, "run")],
+            }
 
         dw_mysql_repository = runtime.context["dw_mysql_repository"]
 
@@ -56,7 +63,7 @@ async def run_sql(state: DataAgentState, runtime: Runtime[DataAgentContext]):
 
         return {
             "sql": guard.sql,
-            "sql_guard": guard.as_dict(),
+            "sql_guards": [guard_record(guard, "run")],
             "sql_elapsed_ms": elapsed_ms,
         }
 

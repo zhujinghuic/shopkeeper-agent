@@ -18,6 +18,7 @@ class SQLAuditMapper:
         return SQLAudit(
             session_id=model.session_id,
             seq=model.seq,
+            stage=model.stage,
             user_query=model.user_query,
             rewritten_query=model.rewritten_query,
             sql=model.sql,
@@ -36,6 +37,7 @@ class SQLAuditMapper:
         return SQLAuditMySQL(
             session_id=audit.session_id,
             seq=audit.seq,
+            stage=audit.stage,
             user_query=audit.user_query,
             rewritten_query=audit.rewritten_query,
             sql=audit.sql,

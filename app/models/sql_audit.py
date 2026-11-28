@@ -22,6 +22,10 @@ class SQLAuditMySQL(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     session_id: Mapped[str] = mapped_column(String(64), index=True, comment="会话编号")
     seq: Mapped[int | None] = mapped_column(Integer, comment="会话内轮次")
+    # 同一条 SQL 可能先被拦、改好后再放行，两条记录靠 stage 区分
+    stage: Mapped[str | None] = mapped_column(
+        String(16), comment="判定阶段：intent/validate/run"
+    )
 
     user_query: Mapped[str | None] = mapped_column(Text, comment="用户原话")
     rewritten_query: Mapped[str | None] = mapped_column(

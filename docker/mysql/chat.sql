@@ -63,11 +63,13 @@ CREATE TABLE chat_session
 
 /**
   SQL 安全审计表
-  每次真正走到执行的 SQL（包括被白名单拦下的）都留一行，
-  另外被意图判断直接拒绝的请求也留一行（此时没有 SQL，靠 guard_rule=intent_unsupported 标记），
-  因为"有人试图删改数据"是比"白名单拦了一条 SELECT"更值得追的线索。
-  用于回答"昨天那个数是怎么查出来的"和"谁在什么时候试图查了不该查的表"。
-  它不是链路追踪，只记录与安全相关的关键事实：谁问的、生成什么、放行还是拦下、执行了多久。
+  一次问数可能留多行，按 stage 区分三次判定：
+    intent  —— 意图判断直接拒绝（没有 SQL，guard_rule=intent_unsupported）
+    validate —— 校验节点的白名单结论
+    run     —— 执行前闸门的最终结论，只有这条带行数和耗时
+  correct_sql 把被拦下的 SQL 改好后会再判定一次，所以“拦下 + 放行”各留一行，
+  这是排查“改之前错在哪、改之后长什么样”的唯一依据。
+  它也不是链路追踪，只记录与安全相关的关键事实：谁问的、生成什么、放行还是拦下、执行了多久。
  */
 DROP TABLE IF EXISTS sql_audit;
 CREATE TABLE sql_audit
@@ -75,9 +77,10 @@ CREATE TABLE sql_audit
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '自增主键',
     session_id      VARCHAR(64) NOT NULL COMMENT '会话编号',
     seq             INT COMMENT '会话内轮次',
+    stage           VARCHAR(16) COMMENT '判定阶段：intent/validate/run',
     user_query      TEXT COMMENT '用户原话',
     rewritten_query TEXT COMMENT '改写后的完整问题',
-    sql_text        TEXT COMMENT '待执行或实际执行的SQL',
+    sql_text        TEXT COMMENT '当次判定时的SQL，意图拒绝时为空',
     allowed         TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否放行：1放行 0拦截',
     guard_rule      VARCHAR(64) COMMENT '命中的安全规则，例如 table_not_allowed',
     guard_reason    VARCHAR(500) COMMENT '规则说明，给人看的',
