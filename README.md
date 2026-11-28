@@ -332,20 +332,6 @@ git checkout main
 
 > 本项目基于尚硅谷「大模型智能体掌柜问数」项目，并在此基础上整理完善。
 
-## 🚧 能力边界
-
-这套项目主要关注智能问数的学习流程，不刻意覆盖生产治理能力，例如：
-
-- 用户登录、角色权限和数据权限控制
-- 多租户隔离
-
-多轮问数的“记忆 + 改写 + 澄清 + 会话列表”已经落到代码里：`rewrite_query` 节点结合会话槽位把追问补成完整问题，
-`chat_turn` 表全量留档、`app/agent/memory.py` 按 token 预算把槽位和最近一次 SQL 基线喂回提示词，
-口径缺失时走 `clarify` 节点反问；`chat_session` 表支撑左侧会话列表，切回历史会话可以接着追问。
-尚未覆盖的是跨设备同步、会话重命名与归档，以及会话归属校验（当前没有登录体系，拿到 session_id 就能读会话）。
-
-这些能力适合在基础流程跑通之后继续扩展。`shopkeeper-agent` 更适合承担一个清晰角色：先把智能问数最关键、最必要、最值得学习的工程链路讲清楚、跑起来，并为后续扩展企业级能力打基础。
-
 ## ⭐ Star History
 
 ![Star History Chart](https://api.star-history.com/image?repos=didilili/shopkeeper-agent&type=date&legend=top-left)
